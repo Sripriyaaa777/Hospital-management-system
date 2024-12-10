@@ -11,8 +11,8 @@
 #define MAX_STAFF 50
 #define MAX_ROOMS 20
 
-// Define structures
-typedef struct {
+typedef struct
+{
     int id;
     char name[50];
     int age;
@@ -20,41 +20,47 @@ typedef struct {
     char diagnosis[100];
 } Patient;
 
-typedef struct {
+typedef struct
+{
     int id;
     char name[50];
     char specialization[50];
     char availability[30];
 } Doctor;
 
-typedef struct {
+typedef struct
+{
     int id;
     int patient_id;
     int doctor_id;
     char date[20];
 } Appointment;
 
-typedef struct {
+typedef struct
+{
     int id;
     int patient_id;
     char diagnosis[100];
     char treatment[100];
 } MedicalRecord;
 
-typedef struct {
+typedef struct
+{
     int id;
     int patient_id;
     double amount;
     char date[20];
 } Bill;
 
-typedef struct {
+typedef struct
+{
     int id;
     char name[50];
     char role[30];
 } Staff;
 
-typedef struct {
+typedef struct
+{
     int id;
     char name[50];
     int capacity;
@@ -69,11 +75,12 @@ Bill bills[MAX_BILLS];
 Staff staff[MAX_STAFF];
 Room rooms[MAX_ROOMS];
 
-// Global counters
 int patientCount = 0, doctorCount = 0, appointmentCount = 0, recordCount = 0, billCount = 0, staffCount = 0, roomCount = 0;
 
-// Function declarations
 void add_patient_gui(GtkWidget *widget, gpointer data);
+void search_patient_gui(GtkWidget *widget, gpointer data);
+void update_patient_gui(GtkWidget *widget, gpointer data);
+void delete_patient_gui(GtkWidget *widget, gpointer data);
 void list_patients_gui(GtkWidget *widget, gpointer data);
 void add_doctor_gui(GtkWidget *widget, gpointer data);
 void list_doctors_gui(GtkWidget *widget, gpointer data);
@@ -90,7 +97,7 @@ void list_staff_gui(GtkWidget *widget, gpointer data);
 
 void create_main_window()
 {
-    GtkWidget *window, *vbox, *add_patient_button, *list_patients_button, *add_doctor_button, *list_doctors_button;
+    GtkWidget *window, *vbox, *add_patient_button, *list_patients_button, *search_patient_button, *update_patient_button, *delete_patient_button, *add_doctor_button, *list_doctors_button;
     GtkWidget *add_appointment_button, *list_appointments_button, *add_medical_record_button, *list_medical_records_button;
     GtkWidget *add_bill_button, *list_bills_button, *add_room_button, *list_rooms_button, *add_staff_button, *list_staff_button;
 
@@ -110,6 +117,18 @@ void create_main_window()
     list_patients_button = gtk_button_new_with_label("List Patients");
     g_signal_connect(list_patients_button, "clicked", G_CALLBACK(list_patients_gui), NULL);
     gtk_box_pack_start(GTK_BOX(vbox), list_patients_button, TRUE, TRUE, 5);
+
+    search_patient_button = gtk_button_new_with_label("Search Patient");
+    g_signal_connect(search_patient_button, "clicked", G_CALLBACK(search_patient_gui), NULL);
+    gtk_box_pack_start(GTK_BOX(vbox), search_patient_button, TRUE, TRUE, 5);
+
+    update_patient_button = gtk_button_new_with_label("Update Patient");
+    g_signal_connect(update_patient_button, "clicked", G_CALLBACK(update_patient_gui), NULL);
+    gtk_box_pack_start(GTK_BOX(vbox), update_patient_button, TRUE, TRUE, 5);
+
+    delete_patient_button = gtk_button_new_with_label("Delete Patient");
+    g_signal_connect(delete_patient_button, "clicked", G_CALLBACK(delete_patient_gui), NULL);
+    gtk_box_pack_start(GTK_BOX(vbox), delete_patient_button, TRUE, TRUE, 5);
 
     add_doctor_button = gtk_button_new_with_label("Add Doctor");
     g_signal_connect(add_doctor_button, "clicked", G_CALLBACK(add_doctor_gui), NULL);
@@ -165,6 +184,7 @@ void create_main_window()
 
     gtk_main();
 }
+
 
 void add_patient_gui(GtkWidget *widget, gpointer data)
 {
@@ -247,6 +267,260 @@ void add_patient_gui(GtkWidget *widget, gpointer data)
 
     gtk_widget_destroy(dialog);
 }
+void search_patient_gui(GtkWidget *widget, gpointer data)
+{
+    GtkWidget *dialog, *content_area, *id_label, *id_entry, *result_label;
+
+    dialog = gtk_dialog_new_with_buttons(
+        "Search Patient",
+        NULL,
+        GTK_DIALOG_MODAL,
+        ("Search"),
+        GTK_RESPONSE_ACCEPT,
+        ("Cancel"),
+        GTK_RESPONSE_REJECT,
+        NULL);
+
+    content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+
+    id_label = gtk_label_new("Enter Patient ID:");
+    id_entry = gtk_entry_new();
+    result_label = gtk_label_new("");
+
+    gtk_box_pack_start(GTK_BOX(content_area), id_label, FALSE, FALSE, 5);
+    gtk_box_pack_start(GTK_BOX(content_area), id_entry, FALSE, FALSE, 5);
+    gtk_box_pack_start(GTK_BOX(content_area), result_label, FALSE, FALSE, 5);
+
+    gtk_widget_show_all(dialog);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+    {
+        int id = atoi(gtk_entry_get_text(GTK_ENTRY(id_entry)));
+        gboolean found = FALSE;
+
+        for (int i = 0; i < patientCount; i++)
+        {
+            if (patients[i].id == id)
+            {
+                char result[500];
+                sprintf(result, "Patient Found:\nID: %d\nName: %s\nAge: %d\nGender: %s\nDiagnosis: %s",
+                        patients[i].id, patients[i].name, patients[i].age,
+                        patients[i].gender, patients[i].diagnosis);
+                gtk_label_set_text(GTK_LABEL(result_label), result);
+                found = TRUE;
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            gtk_label_set_text(GTK_LABEL(result_label), "Patient not found!");
+        }
+
+        gtk_widget_show_all(dialog);
+        gtk_dialog_run(GTK_DIALOG(dialog));
+    }
+
+    gtk_widget_destroy(dialog);
+}
+
+void update_patient_gui(GtkWidget *widget, gpointer data)
+{
+    GtkWidget *dialog, *content_area, *grid;
+    GtkWidget *id_label, *id_entry;
+    GtkWidget *name_label, *name_entry;
+    GtkWidget *age_label, *age_entry;
+    GtkWidget *gender_label, *gender_entry;
+    GtkWidget *diagnosis_label, *diagnosis_entry;
+
+    dialog = gtk_dialog_new_with_buttons(
+        "Update Patient Details",
+        NULL,
+        GTK_DIALOG_MODAL,
+        ("Search"),
+        GTK_RESPONSE_ACCEPT,
+        ("Cancel"),
+        GTK_RESPONSE_REJECT,
+        NULL);
+
+    content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+
+    id_label = gtk_label_new("Enter Patient ID:");
+    id_entry = gtk_entry_new();
+
+    gtk_box_pack_start(GTK_BOX(content_area), id_label, FALSE, FALSE, 5);
+    gtk_box_pack_start(GTK_BOX(content_area), id_entry, FALSE, FALSE, 5);
+
+    gtk_widget_show_all(dialog);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+    {
+        int id = atoi(gtk_entry_get_text(GTK_ENTRY(id_entry)));
+        gboolean found = FALSE;
+
+        for (int i = 0; i < patientCount; i++)
+        {
+            if (patients[i].id == id)
+            {
+                found = TRUE;
+
+                GtkWidget *update_dialog = gtk_dialog_new_with_buttons(
+                    "Edit Patient Details",
+                    NULL,
+                    GTK_DIALOG_MODAL,
+                    ("Save"),
+                    GTK_RESPONSE_ACCEPT,
+                    ("Cancel"),
+                    GTK_RESPONSE_REJECT,
+                    NULL);
+
+                GtkWidget *update_content_area = gtk_dialog_get_content_area(GTK_DIALOG(update_dialog));
+                grid = gtk_grid_new();
+                gtk_container_add(GTK_CONTAINER(update_content_area), grid);
+
+                name_label = gtk_label_new("Name:");
+                name_entry = gtk_entry_new();
+                gtk_entry_set_text(GTK_ENTRY(name_entry), patients[i].name);
+
+                age_label = gtk_label_new("Age:");
+                age_entry = gtk_entry_new();
+                char age_str[10];
+                sprintf(age_str, "%d", patients[i].age);
+                gtk_entry_set_text(GTK_ENTRY(age_entry), age_str);
+
+                gender_label = gtk_label_new("Gender:");
+                gender_entry = gtk_entry_new();
+                gtk_entry_set_text(GTK_ENTRY(gender_entry), patients[i].gender);
+
+                diagnosis_label = gtk_label_new("Diagnosis:");
+                diagnosis_entry = gtk_entry_new();
+                gtk_entry_set_text(GTK_ENTRY(diagnosis_entry), patients[i].diagnosis);
+
+                gtk_grid_attach(GTK_GRID(grid), name_label, 0, 0, 1, 1);
+                gtk_grid_attach(GTK_GRID(grid), name_entry, 1, 0, 1, 1);
+
+                gtk_grid_attach(GTK_GRID(grid), age_label, 0, 1, 1, 1);
+                gtk_grid_attach(GTK_GRID(grid), age_entry, 1, 1, 1, 1);
+
+                gtk_grid_attach(GTK_GRID(grid), gender_label, 0, 2, 1, 1);
+                gtk_grid_attach(GTK_GRID(grid), gender_entry, 1, 2, 1, 1);
+
+                gtk_grid_attach(GTK_GRID(grid), diagnosis_label, 0, 3, 1, 1);
+                gtk_grid_attach(GTK_GRID(grid), diagnosis_entry, 1, 3, 1, 1);
+
+                gtk_widget_show_all(update_dialog);
+
+                if (gtk_dialog_run(GTK_DIALOG(update_dialog)) == GTK_RESPONSE_ACCEPT)
+                {
+                    strcpy(patients[i].name, gtk_entry_get_text(GTK_ENTRY(name_entry)));
+                    patients[i].age = atoi(gtk_entry_get_text(GTK_ENTRY(age_entry)));
+                    strcpy(patients[i].gender, gtk_entry_get_text(GTK_ENTRY(gender_entry)));
+                    strcpy(patients[i].diagnosis, gtk_entry_get_text(GTK_ENTRY(diagnosis_entry)));
+                    printf("Patient details updated successfully!\n");
+                }
+
+                gtk_widget_destroy(update_dialog);
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            GtkWidget *error_dialog = gtk_message_dialog_new(
+                NULL,
+                GTK_DIALOG_MODAL,
+                GTK_MESSAGE_ERROR,
+                GTK_BUTTONS_OK,
+                "Patient with ID %d not found.",
+                id);
+            gtk_dialog_run(GTK_DIALOG(error_dialog));
+            gtk_widget_destroy(error_dialog);
+        }
+    }
+
+    gtk_widget_destroy(dialog);
+}
+
+void delete_patient_gui(GtkWidget *widget, gpointer data)
+{
+    GtkWidget *dialog, *content_area;
+    GtkWidget *id_label, *id_entry;
+
+    // Create a dialog to input patient ID
+    dialog = gtk_dialog_new_with_buttons(
+        "Delete Patient",
+        NULL,
+        GTK_DIALOG_MODAL,
+        ("Delete"),
+        GTK_RESPONSE_ACCEPT,
+        ("Cancel"),
+        GTK_RESPONSE_REJECT,
+        NULL);
+
+    content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+
+    id_label = gtk_label_new("Enter Patient ID:");
+    id_entry = gtk_entry_new();
+
+    gtk_box_pack_start(GTK_BOX(content_area), id_label, FALSE, FALSE, 5);
+    gtk_box_pack_start(GTK_BOX(content_area), id_entry, FALSE, FALSE, 5);
+
+    gtk_widget_show_all(dialog);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+    {
+        int id = atoi(gtk_entry_get_text(GTK_ENTRY(id_entry)));
+        gboolean found = FALSE;
+
+        // Search for the patient in the array
+        for (int i = 0; i < patientCount; i++)
+        {
+            if (patients[i].id == id)
+            {
+                found = TRUE;
+
+                // Shift all patients after the found one up by one position
+                for (int j = i; j < patientCount - 1; j++)
+                {
+                    patients[j] = patients[j + 1];
+                }
+
+                patientCount--; // Reduce the patient count
+                printf("Patient with ID %d deleted successfully!\n", id);
+
+                // Show success message
+                GtkWidget *success_dialog = gtk_message_dialog_new(
+                    NULL,
+                    GTK_DIALOG_MODAL,
+                    GTK_MESSAGE_INFO,
+                    GTK_BUTTONS_OK,
+                    "Patient with ID %d deleted successfully.",
+                    id);
+                gtk_dialog_run(GTK_DIALOG(success_dialog));
+                gtk_widget_destroy(success_dialog);
+
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            // Show error message if patient is not found
+            GtkWidget *error_dialog = gtk_message_dialog_new(
+                NULL,
+                GTK_DIALOG_MODAL,
+                GTK_MESSAGE_ERROR,
+                GTK_BUTTONS_OK,
+                "Patient with ID %d not found.",
+                id);
+            gtk_dialog_run(GTK_DIALOG(error_dialog));
+            gtk_widget_destroy(error_dialog);
+        }
+    }
+
+    gtk_widget_destroy(dialog);
+}
+
 
 void list_patients_gui(GtkWidget *widget, gpointer data)
 {
@@ -399,8 +673,6 @@ void list_doctors_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
-
-// --- Add appointment feature ---
 void add_appointment_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *grid;
@@ -474,7 +746,6 @@ void add_appointment_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
-// --- List appointments feature ---
 void list_appointments_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *scrolled_window, *text_view;
@@ -514,7 +785,6 @@ void list_appointments_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
-// --- Add medical record feature ---
 void add_medical_record_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *grid;
@@ -588,7 +858,6 @@ void add_medical_record_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
-// --- List medical records feature ---
 void list_medical_records_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *scrolled_window, *text_view;
@@ -628,7 +897,6 @@ void list_medical_records_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
-// --- Add bill feature ---
 void add_bill_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *grid;
@@ -702,7 +970,6 @@ void add_bill_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
-// --- List bills feature ---
 void list_bills_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *scrolled_window, *text_view;
@@ -742,7 +1009,6 @@ void list_bills_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
-// --- Add room feature ---
 void add_room_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *grid;
@@ -807,7 +1073,6 @@ void add_room_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
-// --- List rooms feature ---
 void list_rooms_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *scrolled_window, *text_view;
@@ -847,7 +1112,6 @@ void list_rooms_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
-// --- Add staff feature ---
 void add_staff_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *grid;
@@ -912,7 +1176,6 @@ void add_staff_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
-// --- List staff feature ---
 void list_staff_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *scrolled_window, *text_view;
