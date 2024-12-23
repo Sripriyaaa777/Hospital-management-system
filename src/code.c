@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define FILE_NAME "patients.txt"
+
 #define MAX_PATIENTS 100
 #define MAX_DOCTORS 50
 #define MAX_APPOINTMENTS 100
@@ -69,10 +71,6 @@ typedef struct
 Patient patients[MAX_PATIENTS];
 Doctor doctors[MAX_DOCTORS];
 Appointment appointments[MAX_APPOINTMENTS];
-MedicalRecord records[MAX_RECORDS];
-Bill bills[MAX_BILLS];
-Staff staff[MAX_STAFF];
-Room rooms[MAX_ROOMS];
 
 int patientCount = 0, doctorCount = 0, appointmentCount = 0, recordCount = 0, billCount = 0, staffCount = 0, roomCount = 0;
 
@@ -224,13 +222,15 @@ void add_patient_gui(GtkWidget *widget, gpointer data)
 
         if (patientCount < MAX_PATIENTS)
         {
-            patients[patientCount].id = id;
-            strcpy(patients[patientCount].name, name);
-            patients[patientCount].age = age;
-            strcpy(patients[patientCount].gender, gender);
-            strcpy(patients[patientCount].diagnosis, diagnosis);
-            patientCount++;
-            printf("Patient added successfully!\n");
+            FILE *file = fopen(FILE_NAME, "a");
+            if (file == NULL){
+                printf("Error: Unable to open file for writing.\n");
+            }
+            else {
+                fprintf(file, "%d|%s|%d|%s|%s\n", id, name, age, gender, diagnosis);
+                fclose(file);
+                printf("Patient added successfully and saved to file!\n");
+            }
         }
         else
         {
@@ -246,11 +246,11 @@ void search_patient_gui(GtkWidget *widget, gpointer data)
 
     dialog = gtk_dialog_new_with_buttons(
         "Search Patient",
-        NULL,
+        GTK_WINDOW(data),
         GTK_DIALOG_MODAL,
-        ("Search"),
+        "Search",
         GTK_RESPONSE_ACCEPT,
-        ("Cancel"),
+        "Cancel",
         GTK_RESPONSE_REJECT,
         NULL);
 
@@ -271,23 +271,36 @@ void search_patient_gui(GtkWidget *widget, gpointer data)
         int id = atoi(gtk_entry_get_text(GTK_ENTRY(id_entry)));
         gboolean found = FALSE;
 
-        for (int i = 0; i < patientCount; i++)
+        FILE *file = fopen("patients.txt", "r");
+        if (file == NULL)
         {
-            if (patients[i].id == id)
-            {
-                char result[500];
-                sprintf(result, "Patient Found:\nID: %d\nName: %s\nAge: %d\nGender: %s\nDiagnosis: %s",
-                        patients[i].id, patients[i].name, patients[i].age,
-                        patients[i].gender, patients[i].diagnosis);
-                gtk_label_set_text(GTK_LABEL(result_label), result);
-                found = TRUE;
-                break;
-            }
+            gtk_label_set_text(GTK_LABEL(result_label), "Error: Unable to open file.");
         }
-
-        if (!found)
+        else
         {
-            gtk_label_set_text(GTK_LABEL(result_label), "Patient not found!");
+            char line[256];
+            while (fgets(line, sizeof(line), file))
+            {
+                Patient patient;
+                sscanf(line, "%d|%49[^|]|%d|%9[^|]|%99[^\n]",
+                       &patient.id, patient.name, &patient.age, patient.gender, patient.diagnosis);
+
+                if (patient.id == id)
+                {
+                    char result[500];
+                    sprintf(result, "Patient Found:\nID: %d\nName: %s\nAge: %d\nGender: %s\nDiagnosis: %s",
+                            patient.id, patient.name, patient.age, patient.gender, patient.diagnosis);
+                    gtk_label_set_text(GTK_LABEL(result_label), result);
+                    found = TRUE;
+                    break;
+                }
+            }
+            fclose(file);
+
+            if (!found)
+            {
+                gtk_label_set_text(GTK_LABEL(result_label), "Patient not found!");
+            }
         }
 
         gtk_widget_show_all(dialog);
@@ -297,22 +310,18 @@ void search_patient_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
+
 void update_patient_gui(GtkWidget *widget, gpointer data)
 {
-    GtkWidget *dialog, *content_area, *grid;
-    GtkWidget *id_label, *id_entry;
-    GtkWidget *name_label, *name_entry;
-    GtkWidget *age_label, *age_entry;
-    GtkWidget *gender_label, *gender_entry;
-    GtkWidget *diagnosis_label, *diagnosis_entry;
+    GtkWidget *dialog, *content_area, *id_label, *id_entry;
 
     dialog = gtk_dialog_new_with_buttons(
         "Update Patient Details",
-        NULL,
+        GTK_WINDOW(data),
         GTK_DIALOG_MODAL,
-        ("Search"),
+        "Search",
         GTK_RESPONSE_ACCEPT,
-        ("Cancel"),
+        "Cancel",
         GTK_RESPONSE_REJECT,
         NULL);
 
@@ -331,43 +340,66 @@ void update_patient_gui(GtkWidget *widget, gpointer data)
         int id = atoi(gtk_entry_get_text(GTK_ENTRY(id_entry)));
         gboolean found = FALSE;
 
-        for (int i = 0; i < patientCount; i++)
+        FILE *file = fopen("patients.txt", "r");
+        FILE *temp_file = fopen("patients_temp.txt", "w");
+        if (file == NULL || temp_file == NULL)
         {
-            if (patients[i].id == id)
+            GtkWidget *error_dialog = gtk_message_dialog_new(
+                GTK_WINDOW(dialog),
+                GTK_DIALOG_MODAL,
+                GTK_MESSAGE_ERROR,
+                GTK_BUTTONS_OK,
+                "Error: Unable to open file.");
+            gtk_dialog_run(GTK_DIALOG(error_dialog));
+            gtk_widget_destroy(error_dialog);
+            if (file) fclose(file);
+            if (temp_file) fclose(temp_file);
+            gtk_widget_destroy(dialog);
+            return;
+        }
+
+        char line[256];
+        while (fgets(line, sizeof(line), file))
+        {
+            Patient patient;
+            sscanf(line, "%d|%49[^|]|%d|%9[^|]|%99[^\n]",
+                   &patient.id, patient.name, &patient.age, patient.gender, patient.diagnosis);
+
+            if (patient.id == id)
             {
                 found = TRUE;
 
                 GtkWidget *update_dialog = gtk_dialog_new_with_buttons(
                     "Edit Patient Details",
-                    NULL,
+                    GTK_WINDOW(dialog),
                     GTK_DIALOG_MODAL,
-                    ("Save"),
+                    "Save",
                     GTK_RESPONSE_ACCEPT,
-                    ("Cancel"),
+                    "Cancel",
                     GTK_RESPONSE_REJECT,
                     NULL);
 
                 GtkWidget *update_content_area = gtk_dialog_get_content_area(GTK_DIALOG(update_dialog));
-                grid = gtk_grid_new();
+                GtkWidget *grid = gtk_grid_new();
                 gtk_container_add(GTK_CONTAINER(update_content_area), grid);
 
-                name_label = gtk_label_new("Name:");
-                name_entry = gtk_entry_new();
-                gtk_entry_set_text(GTK_ENTRY(name_entry), patients[i].name);
+                GtkWidget *name_label = gtk_label_new("Name:");
+                GtkWidget *name_entry = gtk_entry_new();
+                gtk_entry_set_text(GTK_ENTRY(name_entry), patient.name);
 
-                age_label = gtk_label_new("Age:");
-                age_entry = gtk_entry_new();
+                GtkWidget *age_label = gtk_label_new("Age:");
+                GtkWidget *age_entry = gtk_entry_new();
                 char age_str[10];
-                sprintf(age_str, "%d", patients[i].age);
+                sprintf(age_str, "%d", patient.age);
                 gtk_entry_set_text(GTK_ENTRY(age_entry), age_str);
 
-                gender_label = gtk_label_new("Gender:");
-                gender_entry = gtk_entry_new();
-                gtk_entry_set_text(GTK_ENTRY(gender_entry), patients[i].gender);
+                GtkWidget *gender_label = gtk_label_new("Gender:");
+                GtkWidget *gender_entry = gtk_entry_new();
+                gtk_entry_set_text(GTK_ENTRY(gender_entry), patient.gender);
 
-                diagnosis_label = gtk_label_new("Diagnosis:");
-                diagnosis_entry = gtk_entry_new();
-                gtk_entry_set_text(GTK_ENTRY(diagnosis_entry), patients[i].diagnosis);
+                GtkWidget *diagnosis_label = gtk_label_new("Diagnosis:");
+                GtkWidget *diagnosis_entry = gtk_entry_new();
+                gtk_entry_set_text(GTK_ENTRY(diagnosis_entry), patient.diagnosis);
 
                 gtk_grid_attach(GTK_GRID(grid), name_label, 0, 0, 1, 1);
                 gtk_grid_attach(GTK_GRID(grid), name_entry, 1, 0, 1, 1);
@@ -385,22 +417,32 @@ void update_patient_gui(GtkWidget *widget, gpointer data)
 
                 if (gtk_dialog_run(GTK_DIALOG(update_dialog)) == GTK_RESPONSE_ACCEPT)
                 {
-                    strcpy(patients[i].name, gtk_entry_get_text(GTK_ENTRY(name_entry)));
-                    patients[i].age = atoi(gtk_entry_get_text(GTK_ENTRY(age_entry)));
-                    strcpy(patients[i].gender, gtk_entry_get_text(GTK_ENTRY(gender_entry)));
-                    strcpy(patients[i].diagnosis, gtk_entry_get_text(GTK_ENTRY(diagnosis_entry)));
+                    strcpy(patient.name, gtk_entry_get_text(GTK_ENTRY(name_entry)));
+                    patient.age = atoi(gtk_entry_get_text(GTK_ENTRY(age_entry)));
+                    strcpy(patient.gender, gtk_entry_get_text(GTK_ENTRY(gender_entry)));
+                    strcpy(patient.diagnosis, gtk_entry_get_text(GTK_ENTRY(diagnosis_entry)));
                     printf("Patient details updated successfully!\n");
                 }
 
                 gtk_widget_destroy(update_dialog);
-                break;
             }
+
+            fprintf(temp_file, "%d|%s|%d|%s|%s\n", patient.id, patient.name, patient.age, patient.gender, patient.diagnosis);
         }
 
-        if (!found)
+        fclose(file);
+        fclose(temp_file);
+
+        if (found)
         {
+            remove("patients.txt");
+            rename("patients_temp.txt", "patients.txt");
+        }
+        else
+        {
+            remove("patients_temp.txt");
             GtkWidget *error_dialog = gtk_message_dialog_new(
-                NULL,
+                GTK_WINDOW(dialog),
                 GTK_DIALOG_MODAL,
                 GTK_MESSAGE_ERROR,
                 GTK_BUTTONS_OK,
@@ -414,19 +456,19 @@ void update_patient_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
+
 void delete_patient_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area;
     GtkWidget *id_label, *id_entry;
 
-    // Create a dialog to input patient ID
     dialog = gtk_dialog_new_with_buttons(
         "Delete Patient",
-        NULL,
+        GTK_WINDOW(data),
         GTK_DIALOG_MODAL,
-        ("Delete"),
+        "Delete",
         GTK_RESPONSE_ACCEPT,
-        ("Cancel"),
+        "Cancel",
         GTK_RESPONSE_REJECT,
         NULL);
 
@@ -445,42 +487,67 @@ void delete_patient_gui(GtkWidget *widget, gpointer data)
         int id = atoi(gtk_entry_get_text(GTK_ENTRY(id_entry)));
         gboolean found = FALSE;
 
-        // Search for the patient in the array
-        for (int i = 0; i < patientCount; i++)
+        FILE *file = fopen("patients.txt", "r");
+        FILE *temp_file = fopen("patients_temp.txt", "w");
+
+        if (file == NULL || temp_file == NULL)
         {
-            if (patients[i].id == id)
+            GtkWidget *error_dialog = gtk_message_dialog_new(
+                GTK_WINDOW(dialog),
+                GTK_DIALOG_MODAL,
+                GTK_MESSAGE_ERROR,
+                GTK_BUTTONS_OK,
+                "Error: Unable to open file.");
+            gtk_dialog_run(GTK_DIALOG(error_dialog));
+            gtk_widget_destroy(error_dialog);
+            if (file) fclose(file);
+            if (temp_file) fclose(temp_file);
+            gtk_widget_destroy(dialog);
+            return;
+        }
+
+        char line[256];
+        while (fgets(line, sizeof(line), file))
+        {
+            Patient patient;
+            sscanf(line, "%d|%49[^|]|%d|%9[^|]|%99[^\n]",
+                   &patient.id, patient.name, &patient.age, patient.gender, patient.diagnosis);
+
+            if (patient.id == id)
             {
                 found = TRUE;
-
-                // Shift all patients after the found one up by one position
-                for (int j = i; j < patientCount - 1; j++)
-                {
-                    patients[j] = patients[j + 1];
-                }
-
-                patientCount--; // Reduce the patient count
-                printf("Patient with ID %d deleted successfully!\n", id);
-
-                // Show success message
-                GtkWidget *success_dialog = gtk_message_dialog_new(
-                    NULL,
-                    GTK_DIALOG_MODAL,
-                    GTK_MESSAGE_INFO,
-                    GTK_BUTTONS_OK,
-                    "Patient with ID %d deleted successfully.",
-                    id);
-                gtk_dialog_run(GTK_DIALOG(success_dialog));
-                gtk_widget_destroy(success_dialog);
-
-                break;
+            }
+            else
+            {
+                fprintf(temp_file, "%d|%s|%d|%s|%s\n",
+                        patient.id, patient.name, patient.age, patient.gender, patient.diagnosis);
             }
         }
 
-        if (!found)
+        fclose(file);
+        fclose(temp_file);
+
+        if (found)
         {
-            // Show error message if patient is not found
+            remove("patients.txt");
+            rename("patients_temp.txt", "patients.txt");
+
+            GtkWidget *success_dialog = gtk_message_dialog_new(
+                GTK_WINDOW(dialog),
+                GTK_DIALOG_MODAL,
+                GTK_MESSAGE_INFO,
+                GTK_BUTTONS_OK,
+                "Patient with ID %d deleted successfully.",
+                id);
+            gtk_dialog_run(GTK_DIALOG(success_dialog));
+            gtk_widget_destroy(success_dialog);
+        }
+        else
+        {
+            remove("patients_temp.txt");
+
             GtkWidget *error_dialog = gtk_message_dialog_new(
-                NULL,
+                GTK_WINDOW(dialog),
                 GTK_DIALOG_MODAL,
                 GTK_MESSAGE_ERROR,
                 GTK_BUTTONS_OK,
@@ -501,9 +568,9 @@ void list_patients_gui(GtkWidget *widget, gpointer data)
 
     dialog = gtk_dialog_new_with_buttons(
         "List of Patients",
-        NULL,
+        GTK_WINDOW(data),
         GTK_DIALOG_MODAL,
-        ("Close"),
+        "Close",
         GTK_RESPONSE_CLOSE,
         NULL);
 
@@ -517,12 +584,27 @@ void list_patients_gui(GtkWidget *widget, gpointer data)
     buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(text_view));
 
     char patient_list[5000] = "Patients:\n";
-    for (int i = 0; i < patientCount; i++)
+
+    FILE *file = fopen("patients.txt", "r");
+    if (file == NULL)
     {
-        char line[200];
-        sprintf(line, "ID: %d, Name: %s, Age: %d, Gender: %s, Diagnosis: %s\n",
-                patients[i].id, patients[i].name, patients[i].age, patients[i].gender, patients[i].diagnosis);
-        strcat(patient_list, line);
+        strcat(patient_list, "Error: Unable to open patient file.\n");
+    }
+    else
+    {
+        char line[256];
+        while (fgets(line, sizeof(line), file))
+        {
+            Patient patient;
+            sscanf(line, "%d|%49[^|]|%d|%9[^|]|%99[^\n]",
+                   &patient.id, patient.name, &patient.age, patient.gender, patient.diagnosis);
+
+            char patient_line[200];
+            sprintf(patient_line, "ID: %d, Name: %s, Age: %d, Gender: %s, Diagnosis: %s\n",
+                    patient.id, patient.name, patient.age, patient.gender, patient.diagnosis);
+            strcat(patient_list, patient_line);
+        }
+        fclose(file);
     }
 
     gtk_text_buffer_set_text(buffer, patient_list, -1);
@@ -532,6 +614,7 @@ void list_patients_gui(GtkWidget *widget, gpointer data)
     gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
 }
+
 
 void add_doctor_gui(GtkWidget *widget, gpointer data)
 {
@@ -543,11 +626,11 @@ void add_doctor_gui(GtkWidget *widget, gpointer data)
 
     dialog = gtk_dialog_new_with_buttons(
         "Add Doctor",
-        NULL,
+        GTK_WINDOW(data),
         GTK_DIALOG_MODAL,
-        ("Add"),
+        "Add",
         GTK_RESPONSE_ACCEPT,
-        ("Cancel"),
+        "Cancel",
         GTK_RESPONSE_REJECT,
         NULL);
 
@@ -588,18 +671,26 @@ void add_doctor_gui(GtkWidget *widget, gpointer data)
         const char *specialization = gtk_entry_get_text(GTK_ENTRY(specialization_entry));
         const char *availability = gtk_entry_get_text(GTK_ENTRY(availability_entry));
 
-        if (doctorCount < MAX_DOCTORS)
+        FILE *file = fopen("doctors.txt", "a");
+        if (file == NULL)
         {
-            doctors[doctorCount].id = id;
-            strcpy(doctors[doctorCount].name, name);
-            strcpy(doctors[doctorCount].specialization, specialization);
-            strcpy(doctors[doctorCount].availability, availability);
-            doctorCount++;
-            printf("Doctor added successfully!\n");
+            perror("Error opening doctors file");
         }
         else
         {
-            printf("Doctor list is full!\n");
+            fprintf(file, "%d|%s|%s|%s\n", id, name, specialization, availability);
+            fclose(file);
+
+            GtkWidget *success_dialog = gtk_message_dialog_new(
+                GTK_WINDOW(dialog),
+                GTK_DIALOG_MODAL,
+                GTK_MESSAGE_INFO,
+                GTK_BUTTONS_OK,
+                "Doctor added successfully!");
+            gtk_dialog_run(GTK_DIALOG(success_dialog));
+            gtk_widget_destroy(success_dialog);
+
+            printf("Doctor added successfully!\n");
         }
     }
 
@@ -612,11 +703,11 @@ void search_doctor_gui(GtkWidget *widget, gpointer data)
 
     dialog = gtk_dialog_new_with_buttons(
         "Search Doctor",
-        NULL,
+        GTK_WINDOW(data),
         GTK_DIALOG_MODAL,
-        ("Search"),
+        "Search",
         GTK_RESPONSE_ACCEPT,
-        ("Cancel"),
+        "Cancel",
         GTK_RESPONSE_REJECT,
         NULL);
 
@@ -634,43 +725,59 @@ void search_doctor_gui(GtkWidget *widget, gpointer data)
         int id = atoi(gtk_entry_get_text(GTK_ENTRY(entry)));
         int found = 0;
 
-        for (int i = 0; i < doctorCount; i++)
+        FILE *file = fopen("doctors.txt", "r");
+        if (file == NULL)
         {
-            if (doctors[i].id == id)
+            perror("Error opening doctors file");
+        }
+        else
+        {
+            char line[256];
+            while (fgets(line, sizeof(line), file))
             {
-                found = 1;
+                int doctor_id;
+                char name[100], specialization[100], availability[100];
 
-                GtkWidget *result_dialog = gtk_message_dialog_new(
+                if (sscanf(line, "%d|%99[^|]|%99[^|]|%99[^\n]", &doctor_id, name, specialization, availability) == 4)
+                {
+                    if (doctor_id == id)
+                    {
+                        found = 1;
+
+                        GtkWidget *result_dialog = gtk_message_dialog_new(
+                            GTK_WINDOW(dialog),
+                            GTK_DIALOG_MODAL,
+                            GTK_MESSAGE_INFO,
+                            GTK_BUTTONS_OK,
+                            "Doctor Details:\n\n"
+                            "ID: %d\n"
+                            "Name: %s\n"
+                            "Specialization: %s\n"
+                            "Availability: %s",
+                            doctor_id,
+                            name,
+                            specialization,
+                            availability);
+
+                        gtk_dialog_run(GTK_DIALOG(result_dialog));
+                        gtk_widget_destroy(result_dialog);
+                        break;
+                    }
+                }
+            }
+            fclose(file);
+
+            if (!found)
+            {
+                GtkWidget *error_dialog = gtk_message_dialog_new(
                     GTK_WINDOW(dialog),
                     GTK_DIALOG_MODAL,
-                    GTK_MESSAGE_INFO,
+                    GTK_MESSAGE_ERROR,
                     GTK_BUTTONS_OK,
-                    "Doctor Details:\n\n"
-                    "ID: %d\n"
-                    "Name: %s\n"
-                    "Specialization: %s\n"
-                    "Availability: %s",
-                    doctors[i].id,
-                    doctors[i].name,
-                    doctors[i].specialization,
-                    doctors[i].availability);
-
-                gtk_dialog_run(GTK_DIALOG(result_dialog));
-                gtk_widget_destroy(result_dialog);
-                break;
+                    "Doctor not found!");
+                gtk_dialog_run(GTK_DIALOG(error_dialog));
+                gtk_widget_destroy(error_dialog);
             }
-        }
-
-        if (!found)
-        {
-            GtkWidget *error_dialog = gtk_message_dialog_new(
-                GTK_WINDOW(dialog),
-                GTK_DIALOG_MODAL,
-                GTK_MESSAGE_ERROR,
-                GTK_BUTTONS_OK,
-                "Doctor not found!");
-            gtk_dialog_run(GTK_DIALOG(error_dialog));
-            gtk_widget_destroy(error_dialog);
         }
     }
 
@@ -684,11 +791,11 @@ void update_doctor_gui(GtkWidget *widget, gpointer data)
 
     dialog = gtk_dialog_new_with_buttons(
         "Update Doctor",
-        NULL,
+        GTK_WINDOW(data),
         GTK_DIALOG_MODAL,
-        ("Update"),
+        "Update",
         GTK_RESPONSE_ACCEPT,
-        ("Cancel"),
+        "Cancel",
         GTK_RESPONSE_REJECT,
         NULL);
 
@@ -725,34 +832,63 @@ void update_doctor_gui(GtkWidget *widget, gpointer data)
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
     {
         id = atoi(gtk_entry_get_text(GTK_ENTRY(id_entry)));
+        FILE *file = fopen("doctors.txt", "r");
+        FILE *temp_file = fopen("doctors_temp.txt", "w");
 
-        for (int i = 0; i < doctorCount; i++)
+        if (file == NULL || temp_file == NULL)
         {
-            if (doctors[i].id == id)
+            perror("Error opening file");
+            if (file) fclose(file);
+            if (temp_file) fclose(temp_file);
+            gtk_widget_destroy(dialog);
+            return;
+        }
+
+        char line[256];
+        while (fgets(line, sizeof(line), file))
+        {
+            int doctor_id;
+            char name[100], specialization[100], availability[100];
+
+            if (sscanf(line, "%d|%99[^|]|%99[^|]|%99[^\n]", &doctor_id, name, specialization, availability) == 4)
             {
-                found = 1;
+                if (doctor_id == id)
+                {
+                    found = 1;
 
-                const char *name = gtk_entry_get_text(GTK_ENTRY(name_entry));
-                const char *specialization = gtk_entry_get_text(GTK_ENTRY(specialization_entry));
-                const char *availability = gtk_entry_get_text(GTK_ENTRY(availability_entry));
+                    const char *new_name = gtk_entry_get_text(GTK_ENTRY(name_entry));
+                    const char *new_specialization = gtk_entry_get_text(GTK_ENTRY(specialization_entry));
+                    const char *new_availability = gtk_entry_get_text(GTK_ENTRY(availability_entry));
 
-                strcpy(doctors[i].name, name);
-                strcpy(doctors[i].specialization, specialization);
-                strcpy(doctors[i].availability, availability);
-
-                GtkWidget *success_dialog = gtk_message_dialog_new(GTK_WINDOW(dialog),
-                                                                   GTK_DIALOG_MODAL,
-                                                                   GTK_MESSAGE_INFO,
-                                                                   GTK_BUTTONS_OK,
-                                                                   "Doctor updated successfully!");
-                gtk_dialog_run(GTK_DIALOG(success_dialog));
-                gtk_widget_destroy(success_dialog);
-                break;
+                    fprintf(temp_file, "%d|%s|%s|%s\n", doctor_id, new_name, new_specialization, new_availability);
+                }
+                else
+                {
+                    fputs(line, temp_file);
+                }
             }
         }
 
-        if (!found)
+        fclose(file);
+        fclose(temp_file);
+
+        if (found)
         {
+            remove("doctors.txt");
+            rename("doctors_temp.txt", "doctors.txt");
+
+            GtkWidget *success_dialog = gtk_message_dialog_new(GTK_WINDOW(dialog),
+                                                               GTK_DIALOG_MODAL,
+                                                               GTK_MESSAGE_INFO,
+                                                               GTK_BUTTONS_OK,
+                                                               "Doctor updated successfully!");
+            gtk_dialog_run(GTK_DIALOG(success_dialog));
+            gtk_widget_destroy(success_dialog);
+        }
+        else
+        {
+            remove("doctors_temp.txt");
+
             GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(dialog),
                                                              GTK_DIALOG_MODAL,
                                                              GTK_MESSAGE_ERROR,
@@ -766,17 +902,18 @@ void update_doctor_gui(GtkWidget *widget, gpointer data)
     gtk_widget_destroy(dialog);
 }
 
+
 void delete_doctor_gui(GtkWidget *widget, gpointer data)
 {
     GtkWidget *dialog, *content_area, *entry, *label;
 
     dialog = gtk_dialog_new_with_buttons(
         "Delete Doctor",
-        NULL,
+        GTK_WINDOW(data),
         GTK_DIALOG_MODAL,
-        ("Delete"),
+        "Delete",
         GTK_RESPONSE_ACCEPT,
-        ("Cancel"),
+        "Cancel",
         GTK_RESPONSE_REJECT,
         NULL);
 
@@ -794,32 +931,57 @@ void delete_doctor_gui(GtkWidget *widget, gpointer data)
         int id = atoi(gtk_entry_get_text(GTK_ENTRY(entry)));
         int found = 0;
 
-        for (int i = 0; i < doctorCount; i++)
+        FILE *file = fopen("doctors.txt", "r");
+        FILE *temp_file = fopen("doctors_temp.txt", "w");
+
+        if (file == NULL || temp_file == NULL)
         {
-            if (doctors[i].id == id)
+            perror("Error opening file");
+            if (file) fclose(file);
+            if (temp_file) fclose(temp_file);
+            gtk_widget_destroy(dialog);
+            return;
+        }
+
+        char line[256];
+        while (fgets(line, sizeof(line), file))
+        {
+            int doctor_id;
+            char name[100], specialization[100], availability[100];
+
+            if (sscanf(line, "%d|%99[^|]|%99[^|]|%99[^\n]", &doctor_id, name, specialization, availability) == 4)
             {
-                found = 1;
-
-                // Shift remaining doctors up in the array
-                for (int j = i; j < doctorCount - 1; j++)
+                if (doctor_id == id)
                 {
-                    doctors[j] = doctors[j + 1];
+                    found = 1;
                 }
-                doctorCount--;
-
-                GtkWidget *success_dialog = gtk_message_dialog_new(GTK_WINDOW(dialog),
-                                                                   GTK_DIALOG_MODAL,
-                                                                   GTK_MESSAGE_INFO,
-                                                                   GTK_BUTTONS_OK,
-                                                                   "Doctor deleted successfully!");
-                gtk_dialog_run(GTK_DIALOG(success_dialog));
-                gtk_widget_destroy(success_dialog);
-                break;
+                else
+                {
+                    fputs(line, temp_file);
+                }
             }
         }
 
-        if (!found)
+        fclose(file);
+        fclose(temp_file);
+
+        if (found)
         {
+            remove("doctors.txt");
+            rename("doctors_temp.txt", "doctors.txt");
+
+            GtkWidget *success_dialog = gtk_message_dialog_new(GTK_WINDOW(dialog),
+                                                               GTK_DIALOG_MODAL,
+                                                               GTK_MESSAGE_INFO,
+                                                               GTK_BUTTONS_OK,
+                                                               "Doctor deleted successfully!");
+            gtk_dialog_run(GTK_DIALOG(success_dialog));
+            gtk_widget_destroy(success_dialog);
+        }
+        else
+        {
+            remove("doctors_temp.txt");
+
             GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(dialog),
                                                              GTK_DIALOG_MODAL,
                                                              GTK_MESSAGE_ERROR,
@@ -882,11 +1044,11 @@ void add_appointment_gui(GtkWidget *widget, gpointer data)
 
     dialog = gtk_dialog_new_with_buttons(
         "Add Appointment",
-        NULL,
+        GTK_WINDOW(data),
         GTK_DIALOG_MODAL,
-        ("Add"),
+        "Add",
         GTK_RESPONSE_ACCEPT,
-        ("Cancel"),
+        "Cancel",
         GTK_RESPONSE_REJECT,
         NULL);
 
@@ -927,18 +1089,31 @@ void add_appointment_gui(GtkWidget *widget, gpointer data)
         int doctor_id = atoi(gtk_entry_get_text(GTK_ENTRY(doctor_id_entry)));
         const char *date = gtk_entry_get_text(GTK_ENTRY(date_entry));
 
-        if (appointmentCount < MAX_APPOINTMENTS)
+        FILE *file = fopen("appointments.txt", "a");
+        if (file == NULL)
         {
-            appointments[appointmentCount].id = id;
-            appointments[appointmentCount].patient_id = patient_id;
-            appointments[appointmentCount].doctor_id = doctor_id;
-            strcpy(appointments[appointmentCount].date, date);
-            appointmentCount++;
-            printf("Appointment added successfully!\n");
+            GtkWidget *error_dialog = gtk_message_dialog_new(
+                GTK_WINDOW(dialog),
+                GTK_DIALOG_MODAL,
+                GTK_MESSAGE_ERROR,
+                GTK_BUTTONS_OK,
+                "Failed to open the file for saving the appointment.");
+            gtk_dialog_run(GTK_DIALOG(error_dialog));
+            gtk_widget_destroy(error_dialog);
         }
         else
         {
-            printf("Appointment list is full!\n");
+            fprintf(file, "%d|%d|%d|%s\n", id, patient_id, doctor_id, date);
+            fclose(file);
+
+            GtkWidget *success_dialog = gtk_message_dialog_new(
+                GTK_WINDOW(dialog),
+                GTK_DIALOG_MODAL,
+                GTK_MESSAGE_INFO,
+                GTK_BUTTONS_OK,
+                "Appointment added successfully!");
+            gtk_dialog_run(GTK_DIALOG(success_dialog));
+            gtk_widget_destroy(success_dialog);
         }
     }
 
